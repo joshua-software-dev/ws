@@ -20,6 +20,7 @@ pub const Connection = struct {
     ws_client: *WsClient,
     buffered_reader: BufferedReader,
     headers: std.StringHashMapUnmanaged([]const u8),
+    deinited: bool = false,
 
     /// general types
     const WsClient = Client(Reader, Writer, READ_BUFFER_SIZE, WRITE_BUFFER_SIZE);
@@ -60,10 +61,14 @@ pub const Connection = struct {
     }
 
     pub fn deinit(self: *Connection, allocator: mem.Allocator) void {
-        defer allocator.destroy(&self.buffered_reader);
-        defer allocator.destroy(self.ws_client);
-        self.ws_client.deinit(allocator, &self.headers);
-        self.underlying_stream.close();
+        if (!self.deinited)
+        {
+            self.deinited = true;
+            defer allocator.destroy(&self.buffered_reader);
+            defer allocator.destroy(self.ws_client);
+            self.ws_client.deinit(allocator, &self.headers);
+            self.underlying_stream.close();
+        }
     }
 
     /// Send a WebSocket message to the server.
