@@ -33,15 +33,17 @@ pub const Connection = struct {
         uri: std.Uri,
         request_headers: ?[]const [2][]const u8,
     ) !Connection {
-        var buffered_reader = BufferedReader{ .unbuffered_reader = underlying_stream.reader() };
-        var writer = underlying_stream.writer();
+        const buffered_reader = try allocator.create(BufferedReader);
+        errdefer allocator.destroy(buffered_reader);
 
         const ws_client = try allocator.create(WsClient);
         errdefer allocator.destroy(ws_client);
 
+        buffered_reader.* = BufferedReader{ .unbuffered_reader = underlying_stream.reader() };
+
         ws_client.* = client(
             buffered_reader.reader(),
-            writer,
+            underlying_stream.writer(),
             READ_BUFFER_SIZE,
             WRITE_BUFFER_SIZE,
         );
@@ -49,7 +51,7 @@ pub const Connection = struct {
         var self = Connection{
             .underlying_stream = underlying_stream,
             .ws_client = ws_client,
-            .buffered_reader = buffered_reader,
+            .buffered_reader = buffered_reader.*,
             .headers = .{},
         };
 
@@ -58,6 +60,7 @@ pub const Connection = struct {
     }
 
     pub fn deinit(self: *Connection, allocator: mem.Allocator) void {
+        defer allocator.destroy(&self.buffered_reader);
         defer allocator.destroy(self.ws_client);
         self.ws_client.deinit(allocator, &self.headers);
         self.underlying_stream.close();
