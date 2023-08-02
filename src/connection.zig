@@ -18,7 +18,7 @@ const WRITE_BUFFER_SIZE: usize = 1024 * 4;
 pub const Connection = struct {
     underlying_stream: net.Stream,
     ws_client: *WsClient,
-    buffered_reader: BufferedReader,
+    buffered_reader: *BufferedReader,
     headers: std.StringHashMapUnmanaged([]const u8),
     deinited: bool = false,
 
@@ -52,7 +52,7 @@ pub const Connection = struct {
         var self = Connection{
             .underlying_stream = underlying_stream,
             .ws_client = ws_client,
-            .buffered_reader = buffered_reader.*,
+            .buffered_reader = buffered_reader,
             .headers = .{},
         };
 
@@ -64,7 +64,7 @@ pub const Connection = struct {
         if (!self.deinited)
         {
             self.deinited = true;
-            defer allocator.destroy(&self.buffered_reader);
+            defer allocator.destroy(self.buffered_reader);
             defer allocator.destroy(self.ws_client);
             self.ws_client.deinit(allocator, &self.headers);
             self.underlying_stream.close();
