@@ -188,10 +188,15 @@ pub fn Receiver(comptime Reader: type, comptime capacity: usize) type {
         }
 
         fn pingPong(self: *Self, header: Header) FrameError!Message {
-            if (header.len > self.control_buffer.len)
+            if
+            (
+                (header.len > std.math.maxInt(usize)) or
+                (header.len > @as(u64, self.control_buffer.len))
+            )
                 return error.PayloadTooBig;
 
-            const buf = self.control_buffer[0..header.len];
+            const headerUsize: usize = @truncate(header.len);
+            const buf = self.control_buffer[0..headerUsize];
 
             const len = try self.reader.readAll(buf);
             if (len < buf.len)
@@ -201,10 +206,15 @@ pub fn Receiver(comptime Reader: type, comptime capacity: usize) type {
         }
 
         fn close(self: *Self, header: Header) FrameError!Message {
-            if (header.len > self.control_buffer.len)
+            if
+            (
+                (header.len > std.math.maxInt(usize)) or
+                (header.len > @as(u64, self.control_buffer.len))
+            )
                 return error.PayloadTooBig;
 
-            const buf = self.control_buffer[0..header.len];
+            const headerUsize: usize = @truncate(header.len);
+            const buf = self.control_buffer[0..headerUsize];
 
             const len = try self.reader.readAll(buf);
             if (len < buf.len)
@@ -246,10 +256,16 @@ pub fn Receiver(comptime Reader: type, comptime capacity: usize) type {
                     else => return error.UnknownOpcode,
                 }
 
-                const boundary = self.end + last.len;
-                if (boundary > self.buffer.len)
+                const result = @addWithOverflow(self.end, last.len);
+                if
+                (
+                    (result[1] != 0) or // overflow
+                    (result[0] > std.math.maxInt(usize)) or // truncating would be bad
+                    (result[0] > @as(u64, self.buffer.len))
+                )
                     return error.PayloadTooBig;
 
+                const boundary: usize = @truncate(result[0]);
                 const buf = self.buffer[self.end..boundary];
 
                 const len = try self.reader.readAll(buf);
@@ -285,10 +301,16 @@ pub fn Receiver(comptime Reader: type, comptime capacity: usize) type {
                     else => return error.UnknownOpcode,
                 }
 
-                const boundary = self.end + last.len;
-                if (boundary > self.buffer.len)
+                const result = @addWithOverflow(self.end, last.len);
+                if
+                (
+                    (result[1] != 0) or // overflow
+                    (result[0] > std.math.maxInt(usize)) or // truncating would be bad
+                    (result[0] > @as(u64, self.buffer.len))
+                )
                     return error.PayloadTooBig;
 
+                const boundary: usize = @truncate(result[0]);
                 const buf = self.buffer[self.end..boundary];
 
                 const len = try self.reader.readAll(buf);
@@ -311,11 +333,16 @@ pub fn Receiver(comptime Reader: type, comptime capacity: usize) type {
         } || Message.Error || Reader.Error;
 
         fn regular(self: *Self, header: Header) FrameError!Message {
-            const boundary = self.end + header.len;
-
-            if (boundary > self.buffer.len)
+            const result = @addWithOverflow(self.end, header.len);
+            if
+            (
+                (result[1] != 0) or // overflow
+                (result[0] > std.math.maxInt(usize)) or // truncating would be bad
+                (result[0] > @as(u64, self.buffer.len))
+            )
                 return error.PayloadTooBig;
 
+            const boundary: usize = @truncate(result[0]);
             const buf = self.buffer[self.end..boundary];
 
             const len = try self.reader.readAll(buf);
