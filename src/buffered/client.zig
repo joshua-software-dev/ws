@@ -1,7 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 
-const common = @import("common.zig");
+const common = @import("../common.zig");
 const Message = common.Message;
 const Opcode = common.Opcode;
 
@@ -10,7 +10,7 @@ const Sender = @import("sender.zig").Sender;
 
 /// Create a new WebSocket client.
 /// This interface is for using your own reader and writer.
-pub fn client(
+pub fn create_buffered_client(
     reader: anytype,
     writer: anytype,
     comptime read_buffer_size: usize,
