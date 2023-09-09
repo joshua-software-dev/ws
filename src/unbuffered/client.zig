@@ -1,4 +1,5 @@
 const std = @import("std");
+const io = std.io;
 const mem = std.mem;
 
 const common = @import("../common.zig");
@@ -102,7 +103,7 @@ pub fn UnbufferedClient(
         // completeness.
         pub fn recieveRaw(
             self: *Self,
-            out_stream: ?*std.io.FixedBufferStream([]u8),
+            out_stream: ?*io.FixedBufferStream([]u8),
             writer: anytype,
             max_msg_length: u64,
         ) !UnbufferedMessage {
@@ -120,7 +121,7 @@ pub fn UnbufferedClient(
         /// Receive the next message from the network stream. Incomplete
         /// messages sent from the server will be written into the stream until
         /// the server finishes delivering all parts.
-        pub fn receiveIntoStream(self: *Self, out_stream: ?std.io.FixedBufferStream([]u8)) !UnbufferedMessage {
+        pub fn receiveIntoStream(self: *Self, out_stream: ?io.FixedBufferStream([]u8)) !UnbufferedMessage {
             return self.receiver.receiveIntoStream(out_stream);
         }
 

@@ -3,6 +3,7 @@ const std = @import("std");
 const net = std.net;
 const mem = std.mem;
 const io = std.io;
+const os = std.os;
 
 const client = @import("client.zig");
 const create_unbuffered_client = client.create_unbuffered_client;
@@ -51,22 +52,22 @@ pub const UnbufferedConnection = struct {
             // as far as I can tell, but zig removed it from the std as it
             // didn't work, and zig-network failed to get it to work as well.
             // https://github.com/MasterQ32/zig-network/pull/49#issuecomment-1312793075
-            try std.os.setsockopt(
+            try os.setsockopt(
                 self.underlying_stream.handle,
-                std.os.SOL.SOCKET,
-                std.os.SO.RCVTIMEO,
-                std.mem.asBytes(&durationMilliseconds)
+                os.SOL.SOCKET,
+                os.SO.RCVTIMEO,
+                mem.asBytes(&durationMilliseconds)
             );
         } else {
-            const timeout = std.os.timeval{
+            const timeout = os.timeval{
                 .tv_sec = @intCast(@divTrunc(durationMilliseconds, std.time.ms_per_s)),
                 .tv_usec = @intCast(@mod(durationMilliseconds, std.time.ms_per_s) * std.time.us_per_ms),
             };
-            try std.os.setsockopt(
+            try os.setsockopt(
                 self.underlying_stream.handle,
-                std.os.SOL.SOCKET,
-                std.os.SO.RCVTIMEO,
-                std.mem.toBytes(timeout)[0..]
+                os.SOL.SOCKET,
+                os.SO.RCVTIMEO,
+                mem.toBytes(timeout)[0..]
             );
         }
     }
@@ -104,7 +105,7 @@ pub const UnbufferedConnection = struct {
     // completeness.
     pub fn recieveRaw(
         self: *Self,
-        out_stream: ?*std.io.FixedBufferStream([]u8),
+        out_stream: ?*io.FixedBufferStream([]u8),
         writer: anytype,
         max_msg_length: u64,
     ) !UnbufferedMessage {
@@ -122,7 +123,7 @@ pub const UnbufferedConnection = struct {
     /// Receive the next message from the network stream. Incomplete
     /// messages sent from the server will be written into the stream until
     /// the server finishes delivering all parts.
-    pub fn receiveIntoStream(self: *Self, out_stream: ?std.io.FixedBufferStream([]u8)) !UnbufferedMessage {
+    pub fn receiveIntoStream(self: *Self, out_stream: ?io.FixedBufferStream([]u8)) !UnbufferedMessage {
         return self.ws_client.receiveIntoStream(out_stream);
     }
 

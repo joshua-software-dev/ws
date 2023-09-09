@@ -1,4 +1,5 @@
 const std = @import("std");
+const io = std.io;
 const mem = std.mem;
 const common = @import("../common.zig");
 const Opcode = common.Opcode;
@@ -53,7 +54,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
                         ':' => { // delimiter of key
                             // make sure space comes afterwards
                             if (try self.reader.readByte() == ' ') {
-                                if (std.mem.eql(u8, buf.constSlice(), "Sec-WebSocket-Accept"))
+                                if (mem.eql(u8, buf.constSlice(), "Sec-WebSocket-Accept"))
                                 {
                                     // not all headers are scanned to see if a duplicate "Sec-WebSocket-Accept" key
                                     // could potentially exist, but since we only need this one header, just let the
@@ -100,7 +101,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
                                         var end_buf: [4]u8 = undefined;
                                         const amt_read = try self.reader.read(end_buf[0..]);
                                         if (amt_read < 4) return error.BadHttpResponse;
-                                        if (std.mem.eql(u8, &end_buf, "\r\n\r\n")) return buf.constSlice();
+                                        if (mem.eql(u8, &end_buf, "\r\n\r\n")) return buf.constSlice();
                                     }
                                 }
 
@@ -222,7 +223,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
         fn continuation1(
             self: *Self,
             header: Header,
-            stream: ?*std.io.FixedBufferStream([]u8),
+            stream: ?*io.FixedBufferStream([]u8),
             writer: anytype,
             max_msg_length: u64,
         ) !UnbufferedMessage {
@@ -272,7 +273,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
                     .{
                         .reader = .{
                             .message_complete = last.fin,
-                            .message_reader = std.io.limitedReader(self.reader, last.len),
+                            .message_reader = io.limitedReader(self.reader, last.len),
                         }
                     },
                     null
@@ -284,7 +285,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
         fn continuation(
             self: *Self,
             header: Header,
-            stream: ?*std.io.FixedBufferStream([]u8),
+            stream: ?*io.FixedBufferStream([]u8),
             writer: anytype,
             max_msg_length: u64,
         ) !UnbufferedMessage {
@@ -337,7 +338,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
                     .{
                         .reader = .{
                             .message_complete = last.fin,
-                            .message_reader = std.io.limitedReader(self.reader, last.len),
+                            .message_reader = io.limitedReader(self.reader, last.len),
                         }
                     },
                     null
@@ -348,7 +349,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
         fn regular(
             self: Self,
             header: Header,
-            stream: ?*std.io.FixedBufferStream([]u8),
+            stream: ?*io.FixedBufferStream([]u8),
             writer: anytype,
             max_msg_length: u64,
         ) !UnbufferedMessage {
@@ -381,7 +382,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
                 .{
                     .reader = .{
                         .message_complete = true,
-                        .message_reader = std.io.limitedReader(self.reader, header.len),
+                        .message_reader = io.limitedReader(self.reader, header.len),
                     }
                 },
                 null,
@@ -392,7 +393,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
         // completeness.
         pub fn receiveRaw(
             self: *Self,
-            out_stream: ?*std.io.FixedBufferStream([]u8),
+            out_stream: ?*io.FixedBufferStream([]u8),
             writer: anytype,
             max_msg_length: u64,
         ) !UnbufferedMessage {
@@ -426,7 +427,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
         /// the server finishes delivering all parts.
         pub fn receiveIntoStream(
             self: *Self,
-            out_stream: *std.io.FixedBufferStream([]u8),
+            out_stream: *io.FixedBufferStream([]u8),
         ) !UnbufferedMessage {
             return self.receiveRaw(out_stream, out_stream.*.writer(), try out_stream.*.getEndPos());
         }
@@ -435,7 +436,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
         /// messages sent from the server will be written into the buffer until
         /// the server finishes delivering all parts.
         pub fn receiveIntoBuffer(self: *Self, out_buf: []u8) !UnbufferedMessage {
-            var out_stream = std.io.fixedBufferStream(out_buf);
+            var out_stream = io.fixedBufferStream(out_buf);
             return self.receiveIntoStream(&out_stream);
         }
 
