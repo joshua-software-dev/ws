@@ -11,10 +11,6 @@ const MAX_CTL_FRAME_LENGTH = common.MAX_CTL_FRAME_LENGTH;
 // if masking is allowed, header size can be up to 14 * u8
 // server should not be sending masked messages.
 const MAX_HEADER_SIZE = 10;
-// The max length accepted/sent by common HTTP servers, although the the
-// specification mandates no specific limit, this is the max commonly used in
-// practice.
-const MAX_HTTP_HEADER_LENGTH = 16384;
 
 pub fn UnbufferedReceiver(comptime Reader: type) type {
     return struct {
@@ -33,8 +29,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
         /// header, does not store any other headers. Perhaps a middle ground
         /// between UnbufferedReceiver's no alloc and BufferedReader's arbitary
         /// alloc can be struck in the future.
-        pub fn receiveResponse(self: Self) ![]const u8 {
-            var buf = try std.BoundedArray(u8, MAX_HTTP_HEADER_LENGTH).init(MAX_HTTP_HEADER_LENGTH);
+        pub fn receiveResponse(self: Self, buf: *std.BoundedArray(u8, common.MAX_HTTP_HEADER_LENGTH)) ![]const u8 {
             var i: usize = 0;
             var state: enum { key, value } = .key;
             var header_is_sec_websocket_accept = false;
@@ -54,8 +49,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
                         ':' => { // delimiter of key
                             // make sure space comes afterwards
                             if (try self.reader.readByte() == ' ') {
-                                if (mem.eql(u8, buf.constSlice(), "Sec-WebSocket-Accept"))
-                                {
+                                if (mem.eql(u8, buf.constSlice(), "Sec-WebSocket-Accept")) {
                                     // not all headers are scanned to see if a duplicate "Sec-WebSocket-Accept" key
                                     // could potentially exist, but since we only need this one header, just let the
                                     // first encountered be the only one.
@@ -85,13 +79,11 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
                         '\r' => {
                             // make sure '\n' comes afterwards
                             if (try self.reader.readByte() == '\n') {
-                                if (header_is_sec_websocket_accept)
-                                {
+                                if (header_is_sec_websocket_accept) {
                                     // ensure this isn't the last header before the message
                                     const next1 = try self.reader.readByte();
                                     const next2 = try self.reader.readByte();
-                                    if (next1 == '\r' and next2 == '\n')
-                                    {
+                                    if (next1 == '\r' and next2 == '\n') {
                                         return buf.constSlice();
                                     }
 
@@ -354,9 +346,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
             max_msg_length: u64,
         ) !UnbufferedMessage {
             if (max_msg_length > 0 and header.len > max_msg_length)
-            {
                 return error.PayloadTooBig;
-            }
 
             if (@typeInfo(@TypeOf(writer)) != .Null) {
                 {

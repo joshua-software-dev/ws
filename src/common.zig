@@ -1,8 +1,13 @@
 const std = @import("std");
 
 
-// maximum control frame length
+/// maximum control frame length
 pub const MAX_CTL_FRAME_LENGTH = 125;
+
+/// The max length accepted/sent by common HTTP servers, although the the
+/// specification mandates no specific limit, this is the max commonly used in
+/// practice.
+pub const MAX_HTTP_HEADER_LENGTH = 16384;
 
 pub const Opcode = enum (u4) {
     continuation = 0x0,
