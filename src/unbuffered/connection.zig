@@ -123,7 +123,7 @@ pub const UnbufferedConnection = struct {
     /// Receive the next message from the network stream. Incomplete
     /// messages sent from the server will be written into the stream until
     /// the server finishes delivering all parts.
-    pub fn receiveIntoStream(self: *Self, out_stream: ?io.FixedBufferStream([]u8)) !UnbufferedMessage {
+    pub fn receiveIntoStream(self: *Self, out_stream: *io.FixedBufferStream([]u8)) !UnbufferedMessage {
         return self.ws_client.receiveIntoStream(out_stream);
     }
 

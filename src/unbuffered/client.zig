@@ -5,6 +5,7 @@ const mem = std.mem;
 const common = @import("../common.zig");
 const UnbufferedMessage = common.UnbufferedMessage;
 const Opcode = common.Opcode;
+const MAX_HTTP_HEADER_LENGTH = common.MAX_HTTP_HEADER_LENGTH;
 
 const UnbufferedReceiver = @import("receiver.zig").UnbufferedReceiver;
 const UnbufferedSender = @import("sender.zig").UnbufferedSender;
@@ -43,7 +44,8 @@ pub fn UnbufferedClient(
             const key = std.base64.standard.Encoder.encode(&buf, buf[0..16]);
 
             try self.sender.sendRequest(uri, request_headers, key);
-            const sec_ws_accept = try self.receiver.receiveResponse();
+            var sec_buf = try std.BoundedArray(u8, MAX_HTTP_HEADER_LENGTH).init(MAX_HTTP_HEADER_LENGTH);
+            const sec_ws_accept = try self.receiver.receiveResponse(&sec_buf);
 
             try checkWebSocketAcceptKey(sec_ws_accept, key);
         }
@@ -121,7 +123,7 @@ pub fn UnbufferedClient(
         /// Receive the next message from the network stream. Incomplete
         /// messages sent from the server will be written into the stream until
         /// the server finishes delivering all parts.
-        pub fn receiveIntoStream(self: *Self, out_stream: ?io.FixedBufferStream([]u8)) !UnbufferedMessage {
+        pub fn receiveIntoStream(self: *Self, out_stream: *io.FixedBufferStream([]u8)) !UnbufferedMessage {
             return self.receiver.receiveIntoStream(out_stream);
         }
 
