@@ -121,7 +121,7 @@ pub fn UnbufferedClient(
         /// Receive the next message from the network stream. Incomplete
         /// messages sent from the server will be written into the stream until
         /// the server finishes delivering all parts.
-        pub fn receiveIntoStream(self: *Self, out_stream: ?io.FixedBufferStream([]u8)) !UnbufferedMessage {
+        pub fn receiveIntoStream(self: *Self, out_stream: *io.FixedBufferStream([]u8)) !UnbufferedMessage {
             return self.receiver.receiveIntoStream(out_stream);
         }
 
