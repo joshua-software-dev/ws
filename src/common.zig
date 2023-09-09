@@ -1,3 +1,6 @@
+const std = @import("std");
+
+
 // maximum control frame length
 pub const MAX_CTL_FRAME_LENGTH = 125;
 
@@ -44,5 +47,45 @@ pub const Message = struct {
         }
 
         return Message{ .type = opcode, .data = data, .code = code };
+    }
+};
+
+pub const UnbufferedData = union(enum) {
+    slice: []const u8,
+    reader: struct {
+        message_complete: bool,
+        message_reader: std.io.LimitedReader(std.net.Stream.Reader)
+    },
+    written: u64,
+};
+
+pub const UnbufferedMessage = struct {
+    type: Opcode,
+    data: UnbufferedData,
+    code: ?u16, // only used in close messages
+
+    pub const Error = error{FragmentedMessage, UnknownOpcode};
+
+    /// Create a WebSocket message from given fields.
+    pub fn from(
+        opcode: Opcode,
+        data: UnbufferedData,
+        code: ?u16,
+    ) UnbufferedMessage.Error!UnbufferedMessage {
+
+        switch (opcode) {
+            .text, .binary,
+            .ping, .pong,
+            .close => {},
+
+            .continuation => return error.FragmentedMessage,
+            else => return error.UnknownOpcode,
+        }
+
+        return UnbufferedMessage{
+            .type = opcode,
+            .data = data,
+            .code = code,
+        };
     }
 };
