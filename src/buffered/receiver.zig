@@ -1,6 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
-const common = @import("common.zig");
+const common = @import("../common.zig");
 const Opcode = common.Opcode;
 const Header = common.Header;
 const Message = common.Message;

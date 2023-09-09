@@ -7,7 +7,7 @@ const io = std.io;
 const Client = @import("client.zig").Client;
 const client = @import("client.zig").client;
 
-const common = @import("common.zig");
+const common = @import("../common.zig");
 const Opcode = common.Opcode;
 const Message = common.Message;
 

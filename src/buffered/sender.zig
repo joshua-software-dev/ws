@@ -1,7 +1,7 @@
 const std = @import("std");
 const mem = std.mem;
 const io = std.io;
-const common = @import("common.zig");
+const common = @import("../common.zig");
 const Opcode = common.Opcode;
 const Header = common.Header;
 
@@ -59,7 +59,7 @@ pub fn Sender(comptime Writer: type, comptime capacity: usize) type {
                 }
             }
 
-            // send 'em all 
+            // send 'em all
             try self.put("\r\n");
             return self.flush();
         }
@@ -286,7 +286,7 @@ test "std.Uri processing results in expected paths" {
         "/?query1=&&something&query2=somethingelse",
         "/?query1=something%20with%20spaces&query2=somethingelse",
     };
-    
+
     for (uris, paths) |uri, path| {
         try std.testing.expectEqualSlices(u8, path, try getUriFullPath(uri));
     }

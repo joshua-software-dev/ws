@@ -4,10 +4,12 @@ const mem = std.mem;
 const io = std.io;
 
 // these can be used directly too
-pub const Client = @import("client.zig").Client;
-pub const client = @import("client.zig").client;
-pub const Connection = @import("connection.zig").Connection;
 pub const Header = [2][]const u8;
+
+pub const buffered = @import("buffered/buffered.zig");
+pub const Client = buffered.Client;
+pub const create_buffered_client = buffered.create_buffered_client;
+pub const Connection = buffered.Connection;
 
 pub const Address = union(enum) {
     ip: std.net.Address,
