@@ -9,6 +9,15 @@ pub const MAX_CTL_FRAME_LENGTH = 125;
 /// practice.
 pub const MAX_HTTP_HEADER_LENGTH = 16384;
 
+pub fn timespec_from_ns(timeout_nano_seconds: ?u64) std.os.timespec
+{
+    return if (timeout_nano_seconds) |tout| block: {
+        const secs = @divFloor(tout, std.time.ns_per_s);
+        const nsecs = @mod(tout, std.time.ns_per_s);
+        break :block .{ .tv_sec = @intCast(secs), .tv_nsec = @intCast(nsecs) };
+    } else .{ .tv_sec = 0, .tv_nsec = 0 };
+}
+
 pub fn timeval_from_ns(timeout_nano_seconds: ?u64) std.os.timeval
 {
     return if (timeout_nano_seconds) |tout| block: {

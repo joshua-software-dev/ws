@@ -82,14 +82,15 @@ test "Simple buffered connection to :8080" {
     std.debug.print("\n", .{});
     const allocator = std.testing.allocator;
 
-    var cli = try connect(allocator, try std.Uri.parse("ws://localhost:6463"), &.{
+    var cli = try connect(allocator, try std.Uri.parse("ws://localhost:8080"), &.{
         .{"Host",   "localhost"},
         .{"Origin", "http://localhost/"},
     });
     defer cli.deinit(allocator);
 
+    const timeout = 0.5 * std.time.ns_per_ms;
     while (true) {
-        const msg = try cli.receive(500);
+        const msg = try cli.receive(timeout);
         switch (msg.type) {
             .text => {
                 std.debug.print("received: {s}\n", .{msg.data});
@@ -126,10 +127,11 @@ test "Simple unbuffered connection to :8080" {
     });
     defer cli.deinit();
 
+    const timeout = 0.5 * std.time.ns_per_ms;
     var new_msg = false;
     var buf = try std.BoundedArray(u8, 1024).init(0);
     while (true) {
-        var msg = try cli.receiveUnbuffered(0, 500);
+        var msg = try cli.receiveUnbuffered(0, timeout);
         switch (msg.type) {
             .text => {
                 switch (msg.data) {
@@ -189,10 +191,11 @@ test "Simple unbuffered writer connection to :8080" {
     });
     defer cli.deinit();
 
+    const timeout = 0.5 * std.time.ns_per_ms;
     var buf = std.ArrayList(u8).init(allocator);
     while (true) {
         buf.clearRetainingCapacity();
-        var msg = try cli.receiveIntoWriter(buf.writer(), 0, 500);
+        var msg = try cli.receiveIntoWriter(buf.writer(), 0, timeout);
         switch (msg.type) {
             .text => {
                 switch (msg.data) {
@@ -239,9 +242,10 @@ test "Simple unbuffered connection with local buffer to :8080" {
     });
     defer cli.deinit();
 
+    const timeout = 0.5 * std.time.ns_per_ms;
     while (true) {
         var buf: [1024]u8 = undefined;
-        var msg = try cli.receiveIntoBuffer(&buf, 500);
+        var msg = try cli.receiveIntoBuffer(&buf, timeout);
         switch (msg.type) {
             .text => {
                 switch (msg.data) {

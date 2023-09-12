@@ -32,7 +32,7 @@ pub fn wait_until_socket_readable(sock_fd: os.socket_t, timeout_nano_seconds: ?u
             else => |err| return os.windows.unexpectedWSAError(err),
         };
     }
-    if (rc == 0) return false; // timeout
+    if (rc == 0) return false;
     std.debug.assert(rc == 1);
     return true;
 }
