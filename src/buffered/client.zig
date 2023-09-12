@@ -11,6 +11,7 @@ const Sender = @import("sender.zig").Sender;
 /// Create a new WebSocket client.
 /// This interface is for using your own reader and writer.
 pub fn create_buffered_client(
+    handle: std.os.socket_t,
     reader: anytype,
     writer: anytype,
     comptime read_buffer_size: usize,
@@ -21,7 +22,7 @@ pub fn create_buffered_client(
     std.crypto.random.bytes(&mask);
 
     return .{
-        .receiver = .{ .reader = reader },
+        .receiver = .{ .handle = handle, .reader = reader },
         .sender = .{ .writer = writer, .mask = mask },
     };
 }
@@ -121,8 +122,13 @@ pub fn Client(
         }
 
         /// Receive a message from the server.
-        pub fn receive(self: *Self) !Message {
-            return self.receiver.receive();
+        ///
+        /// If `timeout_nano_seconds` is greater than `0`, and no data is read
+        /// in the timeout period, then `std.net.Stream.ReadError.WouldBlock`
+        /// is returned. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK`
+        /// error.
+        pub fn receive(self: *Self, timeout_nano_seconds: u64) !Message {
+            return self.receiver.receive(timeout_nano_seconds);
         }
     };
 }

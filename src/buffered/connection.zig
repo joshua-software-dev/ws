@@ -42,6 +42,7 @@ pub const Connection = struct {
         errdefer allocator.destroy(ws_client);
 
         ws_client.* = create_buffered_client(
+            underlying_stream.handle,
             buffered_reader.reader(),
             writer,
             READ_BUFFER_SIZE,
@@ -63,36 +64,6 @@ pub const Connection = struct {
         defer allocator.destroy(self.ws_client);
         self.ws_client.deinit(allocator, &self.headers);
         self.underlying_stream.close();
-    }
-
-    /// Set read timeout in milliseconds
-    pub fn setReadTimeout(self: *Connection, durationMilliseconds: u32) !void {
-        if (builtin.os.tag == .windows) @compileError("Connection.setReadTimeout unsupported on Windows");
-        if (durationMilliseconds == 0) return;
-
-        if (builtin.os.tag == .windows) {
-            // This implementation should work on Windows per microsoft's docs
-            // as far as I can tell, but zig removed it from the std as it
-            // didn't work, and zig-network failed to get it to work as well.
-            // https://github.com/MasterQ32/zig-network/pull/49#issuecomment-1312793075
-            try std.os.setsockopt(
-                self.underlying_stream.handle,
-                std.os.SOL.SOCKET,
-                std.os.SO.RCVTIMEO,
-                std.mem.asBytes(&durationMilliseconds)
-            );
-        } else {
-            const timeout = std.os.timeval{
-                .tv_sec = @intCast(@divTrunc(durationMilliseconds, std.time.ms_per_s)),
-                .tv_usec = @intCast(@mod(durationMilliseconds, std.time.ms_per_s) * std.time.us_per_ms),
-            };
-            try std.os.setsockopt(
-                self.underlying_stream.handle,
-                std.os.SOL.SOCKET,
-                std.os.SO.RCVTIMEO,
-                std.mem.toBytes(timeout)[0..]
-            );
-        }
     }
 
     /// Send a WebSocket message to the server.
@@ -125,12 +96,11 @@ pub const Connection = struct {
 
     /// Receive a message from the server.
     ///
-    /// If a timeout occurs after `setReadTimeout` has been called, the error
-    /// `std.net.Stream.ReadError.WouldBlock` is returned on Posix-flavored
-    /// systems. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK` error.
-    ///
-    /// Due to API limitations, `setReadTimeout` does not work on Windows.
-    pub fn receive(self: Connection) !Message {
-        return self.ws_client.receive();
+    /// If `timeout_nano_seconds` is greater than `0`, and no data is read
+    /// in the timeout period, then `std.net.Stream.ReadError.WouldBlock`
+    /// is returned. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK`
+    /// error.
+    pub fn receive(self: Connection, timeout_nano_seconds: u64) !Message {
+        return self.ws_client.receive(timeout_nano_seconds);
     }
 };

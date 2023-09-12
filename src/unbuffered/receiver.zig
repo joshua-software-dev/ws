@@ -1,3 +1,4 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const io = std.io;
 const mem = std.mem;
@@ -5,6 +6,7 @@ const common = @import("../common.zig");
 const Opcode = common.Opcode;
 const Header = common.Header;
 const UnbufferedMessage = common.UnbufferedMessage;
+const win_select = if (builtin.os.tag == .windows) @import("../win_select.zig") else null;
 
 const MAX_CTL_FRAME_LENGTH = common.MAX_CTL_FRAME_LENGTH;
 // max header size can be 10 * u8,
@@ -16,6 +18,7 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
     return struct {
         const Self = @This();
 
+        handle: std.os.socket_t,
         reader: Reader,
         header_buffer: [MAX_HEADER_SIZE]u8 = undefined,
         fragmentation: Fragmentation = .{},
@@ -379,16 +382,52 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
             );
         }
 
-        // Recommend against using this method directly, but it is exposed for
-        // completeness.
+        pub fn waitForDataAvailable(self: *Self, timeout_nano_seconds: u64) !bool
+        {
+            switch (builtin.os.tag)
+            {
+                .windows =>
+                {
+                    return try win_select.wait_until_socket_readable(self.handle, timeout_nano_seconds);
+                },
+                else =>
+                {
+                    // The timeout is implemented with a socketopt error on non-windows systems
+                    const tv = common.timeval_from_ns(timeout_nano_seconds);
+                    try std.os.setsockopt(
+                        self.handle,
+                        std.os.SOL.SOCKET,
+                        std.os.SO.RCVTIMEO,
+                        mem.toBytes(tv)[0..]
+                    );
+                    return true;
+                },
+            }
+        }
+
+        /// Recommend against using this method directly, but it is exposed for
+        /// completeness.
+        ///
+        /// A `max_msg_length` of 0 disables message length limits
+        ///
+        /// If `timeout_nano_seconds` is greater than `0`, and no data is read
+        /// in the timeout period, then `std.net.Stream.ReadError.WouldBlock`
+        /// is returned. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK`
+        /// error.
         pub fn receiveRaw(
             self: *Self,
             out_stream: ?*io.FixedBufferStream([]u8),
             writer: anytype,
             max_msg_length: u64,
+            timeout_nano_seconds: u64,
         ) !UnbufferedMessage {
-            const header = try self.getHeader();
+            const data_available = try self.waitForDataAvailable(timeout_nano_seconds);
+            if (!data_available)
+            {
+                return std.net.Stream.ReadError.WouldBlock;
+            }
 
+            const header = try self.getHeader();
             return switch (header.opcode) {
                 .continuation => self.continuation1(header, out_stream, writer, max_msg_length),
                 .text, .binary => switch (header.fin) {
@@ -407,34 +446,67 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
         /// Receive the next message from the network stream. Incomplete
         /// messages sent from the server will be written into the writer until
         /// the server finishes delivering all parts.
+        ///
         /// A `max_msg_length` of 0 disables message length limits
-        pub fn receiveIntoWriter(self: *Self, writer: anytype, max_msg_length: u64) !UnbufferedMessage {
-            return self.receiveRaw(null, writer, max_msg_length);
+        ///
+        /// If `timeout_nano_seconds` is greater than `0`, and no data is read
+        /// in the timeout period, then `std.net.Stream.ReadError.WouldBlock`
+        /// is returned. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK`
+        /// error.
+        pub fn receiveIntoWriter(
+            self: *Self,
+            writer: anytype,
+            max_msg_length: u64,
+            timeout_nano_seconds: u64,
+        ) !UnbufferedMessage {
+            return self.receiveRaw(null, writer, max_msg_length, timeout_nano_seconds);
         }
 
         /// Receive the next message from the network stream. Incomplete
         /// messages sent from the server will be written into the stream until
         /// the server finishes delivering all parts.
+        ///
+        /// If `timeout_nano_seconds` is greater than `0`, and no data is read
+        /// in the timeout period, then `std.net.Stream.ReadError.WouldBlock`
+        /// is returned. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK`
+        /// error.
         pub fn receiveIntoStream(
             self: *Self,
             out_stream: *io.FixedBufferStream([]u8),
+            timeout_nano_seconds: u64,
         ) !UnbufferedMessage {
-            return self.receiveRaw(out_stream, out_stream.*.writer(), try out_stream.*.getEndPos());
+            return self.receiveRaw(
+                out_stream,
+                out_stream.*.writer(),
+                try out_stream.*.getEndPos(),
+                timeout_nano_seconds,
+            );
         }
 
         /// Receive the next message from the network stream. Incomplete
         /// messages sent from the server will be written into the buffer until
         /// the server finishes delivering all parts.
-        pub fn receiveIntoBuffer(self: *Self, out_buf: []u8) !UnbufferedMessage {
+        ///
+        /// If `timeout_nano_seconds` is greater than `0`, and no data is read
+        /// in the timeout period, then `std.net.Stream.ReadError.WouldBlock`
+        /// is returned. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK`
+        /// error.
+        pub fn receiveIntoBuffer(self: *Self, out_buf: []u8, timeout_nano_seconds: u64) !UnbufferedMessage {
             var out_stream = io.fixedBufferStream(out_buf);
-            return self.receiveIntoStream(&out_stream);
+            return self.receiveIntoStream(&out_stream, timeout_nano_seconds);
         }
 
         /// Receive the next message from the stream. Incomplete messages sent
         /// from the server will be returned as they are received.
+        ///
         /// A `max_msg_length` of 0 disables message length limits
-        pub fn receiveUnbuffered(self: *Self, max_msg_length: u64) !UnbufferedMessage {
-            return self.receiveRaw(null, null, max_msg_length);
+        ///
+        /// If `timeout_nano_seconds` is greater than `0`, and no data is read
+        /// in the timeout period, then `std.net.Stream.ReadError.WouldBlock`
+        /// is returned. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK`
+        /// error.
+        pub fn receiveUnbuffered(self: *Self, max_msg_length: u64, timeout_nano_seconds: u64) !UnbufferedMessage {
+            return self.receiveRaw(null, null, max_msg_length, timeout_nano_seconds);
         }
     };
 }

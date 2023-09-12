@@ -1,9 +1,11 @@
+const builtin = @import("builtin");
 const std = @import("std");
 const mem = std.mem;
 const common = @import("../common.zig");
 const Opcode = common.Opcode;
 const Header = common.Header;
 const Message = common.Message;
+const win_select = if (builtin.os.tag == .windows) @import("../win_select.zig") else null;
 
 const MAX_CTL_FRAME_LENGTH = common.MAX_CTL_FRAME_LENGTH;
 // max header size can be 10 * u8,
@@ -15,6 +17,7 @@ pub fn Receiver(comptime Reader: type, comptime capacity: usize) type {
     return struct {
         const Self = @This();
 
+        handle: std.os.socket_t,
         reader: Reader,
         buffer: [capacity]u8 = undefined,
         header_buffer: [MAX_HEADER_SIZE]u8 = undefined,
@@ -352,12 +355,58 @@ pub fn Receiver(comptime Reader: type, comptime capacity: usize) type {
             return Message.from(header.opcode, buf, null);
         }
 
-        pub const Error = error{BadMessageOrder} || Header.Error || FrameError || ContinuationError;
+        pub const DataTimeoutError = error{
+            PermissionDenied,
+            NoDevice,
+            NetworkSubsystemFailed,
+            FileDescriptorNotASocket,
+            AlreadyConnected,
+            InvalidProtocolOption,
+            TimeoutTooBig,
+            SocketNotBound,
+            SystemResources,
+            Unexpected,
+        };
 
-        /// Receive the next message from the stream.
-        pub fn receive(self: *Self) Error!Message {
+        pub fn waitForDataAvailable(self: *Self, timeout_nano_seconds: u64) DataTimeoutError!bool
+        {
+            switch (builtin.os.tag)
+            {
+                .windows =>
+                {
+                    return try win_select.wait_until_socket_readable(self.handle, timeout_nano_seconds);
+                },
+                else =>
+                {
+                    // The timeout is implemented with a socketopt error on non-windows systems
+                    const tv = common.timeval_from_ns(timeout_nano_seconds);
+                    try std.os.setsockopt(
+                        self.handle,
+                        std.os.SOL.SOCKET,
+                        std.os.SO.RCVTIMEO,
+                        mem.toBytes(tv)[0..]
+                    );
+                    return true;
+                },
+            }
+        }
+
+        pub const Error = error{BadMessageOrder} || Header.Error || FrameError || ContinuationError || DataTimeoutError;
+
+        /// Receive a message from the server.
+        ///
+        /// If `timeout_nano_seconds` is greater than `0`, and no data is read
+        /// in the timeout period, then `std.net.Stream.ReadError.WouldBlock`
+        /// is returned. This is equivalent to a Posix `EAGAIN` or `EWOULDBLOCK`
+        /// error.
+        pub fn receive(self: *Self, timeout_nano_seconds: u64) Error!Message {
+            const data_available = try self.waitForDataAvailable(timeout_nano_seconds);
+            if (!data_available)
+            {
+                return std.net.Stream.ReadError.WouldBlock;
+            }
+
             const header = try self.getHeader();
-
             return switch (header.opcode) {
                 .continuation => self.continuation1(header),
                 .text, .binary => switch (header.fin) {

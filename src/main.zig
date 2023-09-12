@@ -79,16 +79,17 @@ pub fn connect_unbuffered(allocator: ?mem.Allocator, uri: std.Uri, request_heade
 }
 
 test "Simple buffered connection to :8080" {
+    std.debug.print("\n", .{});
     const allocator = std.testing.allocator;
 
-    var cli = try connect(allocator, try std.Uri.parse("ws://localhost:8080"), &.{
+    var cli = try connect(allocator, try std.Uri.parse("ws://localhost:6463"), &.{
         .{"Host",   "localhost"},
         .{"Origin", "http://localhost/"},
     });
     defer cli.deinit(allocator);
 
     while (true) {
-        const msg = try cli.receive();
+        const msg = try cli.receive(500);
         switch (msg.type) {
             .text => {
                 std.debug.print("received: {s}\n", .{msg.data});
@@ -101,7 +102,7 @@ test "Simple buffered connection to :8080" {
             },
 
             .close => {
-                std.debug.print("close", .{});
+                std.debug.print("close\n", .{});
                 break;
             },
 
@@ -115,6 +116,7 @@ test "Simple buffered connection to :8080" {
 }
 
 test "Simple unbuffered connection to :8080" {
+    std.debug.print("\n", .{});
     const allocator = std.testing.allocator;
     _ = allocator;
 
@@ -127,7 +129,7 @@ test "Simple unbuffered connection to :8080" {
     var new_msg = false;
     var buf = try std.BoundedArray(u8, 1024).init(0);
     while (true) {
-        var msg = try cli.receiveUnbuffered(0);
+        var msg = try cli.receiveUnbuffered(0, 500);
         switch (msg.type) {
             .text => {
                 switch (msg.data) {
@@ -159,7 +161,7 @@ test "Simple unbuffered connection to :8080" {
             },
 
             .close => {
-                std.debug.print("close", .{});
+                std.debug.print("close\n", .{});
                 break;
             },
 
@@ -178,6 +180,7 @@ test "Simple unbuffered connection to :8080" {
 }
 
 test "Simple unbuffered writer connection to :8080" {
+    std.debug.print("\n", .{});
     const allocator = std.testing.allocator;
 
     var cli = try connect_unbuffered(null, try std.Uri.parse("ws://127.0.0.1:8080"), &.{
@@ -189,7 +192,7 @@ test "Simple unbuffered writer connection to :8080" {
     var buf = std.ArrayList(u8).init(allocator);
     while (true) {
         buf.clearRetainingCapacity();
-        var msg = try cli.receiveIntoWriter(buf.writer(), 0);
+        var msg = try cli.receiveIntoWriter(buf.writer(), 0, 500);
         switch (msg.type) {
             .text => {
                 switch (msg.data) {
@@ -212,7 +215,7 @@ test "Simple unbuffered writer connection to :8080" {
             },
 
             .close => {
-                std.debug.print("close", .{});
+                std.debug.print("close\n", .{});
                 break;
             },
 
@@ -226,6 +229,7 @@ test "Simple unbuffered writer connection to :8080" {
 }
 
 test "Simple unbuffered connection with local buffer to :8080" {
+    std.debug.print("\n", .{});
     const allocator = std.testing.allocator;
     _ = allocator;
 
@@ -237,7 +241,7 @@ test "Simple unbuffered connection with local buffer to :8080" {
 
     while (true) {
         var buf: [1024]u8 = undefined;
-        var msg = try cli.receiveIntoBuffer(&buf);
+        var msg = try cli.receiveIntoBuffer(&buf, 500);
         switch (msg.type) {
             .text => {
                 switch (msg.data) {
@@ -255,7 +259,7 @@ test "Simple unbuffered connection with local buffer to :8080" {
             },
 
             .close => {
-                std.debug.print("close", .{});
+                std.debug.print("close\n", .{});
                 break;
             },
 
