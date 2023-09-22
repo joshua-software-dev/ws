@@ -397,12 +397,11 @@ pub fn UnbufferedReceiver(comptime Reader: type) type {
                     const timespec = common.timespec_from_ns(timeout_nano_seconds);
                     const sigset = std.os.empty_sigset;
 
-                    const rc = try std.os.ppoll(&fds, &timespec, &sigset);
-                    if (rc == 0) return false;
-
-                    std.debug.assert(rc == 1);
-                    std.debug.assert(fds[0].revents == std.os.POLL.IN);
-                    return true;
+                    const return_code = try std.os.ppoll(&fds, &timespec, &sigset);
+                    if (return_code == 0) return false; // timed out
+                    return
+                        return_code == 1 and // 1 == success
+                        fds[0].revents == std.os.POLL.IN; // the event is the expect kind
                 },
             }
         }
